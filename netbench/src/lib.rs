@@ -92,7 +92,6 @@ pub struct AppConfig {
     pub transport: Transport,
 
     pub noreply: bool,
-    pub busyloop: bool,
 
     // Server
     pub port: u16,
@@ -154,7 +153,6 @@ impl AppConfig {
         };
 
         let noreply = matches.is_present("noreply");
-        let busyloop = matches.is_present("busyloop");
 
         let requests = value_t!(matches, "requests", usize).unwrap_or(250000);
         let destinations = values_t!(matches, "destinations", String)
@@ -170,12 +168,14 @@ impl AppConfig {
             mapping,
             sockets,
             socketmapping,
+
             scheduler,
             timestamp,
             transport,
             noreply,
-            busyloop,
+
             port,
+
             requests,
             destinations,
             rate,
@@ -320,7 +320,7 @@ pub fn read_nic_timestamp(msg: &socket::RecvMsg, method: PacketTimestamp) -> u64
                     _ => panic!("Got Unexpected ControlMessage on RX path!"),
                 }
             }
-            panic!("No Control Message found");
+            return 0
         }
         PacketTimestamp::None => 0,
     }

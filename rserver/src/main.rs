@@ -94,6 +94,7 @@ fn network_loop(
     let mut write_saw_egain: bool = false;
 
     let mut min_seen: u64 = u64::max_value();
+    let mut rx_nic_last: u64 = 0;
 
     let mut time_rx: socket::CmsgSpace<[time::TimeVal; 3]> = socket::CmsgSpace::new();
     let mut time_tx: socket::CmsgSpace<[time::TimeVal; 3]> = socket::CmsgSpace::new();
@@ -161,6 +162,8 @@ fn network_loop(
                         return;
                     }
                     let rx_app = recv_done();
+                    
+                    debug!("Message payload got {} bytes", msg.bytes);
                     assert_eq!(msg.bytes, 8, "Message payload got {} bytes", msg.bytes);
                     let mut packet_id = recv_buf
                         .as_slice()
@@ -176,7 +179,7 @@ fn network_loop(
                         tst
                     });
 
-                    let rx_nic = read_nic_timestamp(&msg, config.timestamp);
+                    let mut rx_nic = read_nic_timestamp(&msg, config.timestamp);
                     debug!("Got rx_nic = {}", rx_nic);
 
                     if packet_id == 0 {
@@ -196,6 +199,11 @@ fn network_loop(
                         info!("Min latency was {}", min_seen);
                         return;
                     } else {
+
+                        if rx_nic == 0 {
+                            rx_nic = rx_nic_last;
+                        }
+
                         debug!("Storing packet in send_state");
                         let mst = MessageState::new(
                             packet_id,
@@ -205,6 +213,9 @@ fn network_loop(
                             rx_nic,
                             rx_ht,
                         );
+
+                        rx_nic_last = rx_nic;
+
                         if packet_id % 5000 == 0 {
                             info!("packet {} took {} ns", packet_id, mst.linux_rx_latency());
                         }
@@ -214,7 +225,9 @@ fn network_loop(
 
                         if config.noreply {
                             let mut logfile = wtr.lock().unwrap();
-                            logfile.serialize(mst.log).expect("Can't write log record");
+                            if rx_nic != 0 {
+                                logfile.serialize(mst.log).expect("Can't write log record");
+                            }
                         } else {
                             let mut send_state = send_state[&raw_fd].lock().unwrap();
                             (*send_state).push_back(mst);
