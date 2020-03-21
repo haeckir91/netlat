@@ -14,11 +14,45 @@
 
 #ifdef __linux
 #include <linux/net_tstamp.h>
+#include <time.h>
 #endif
 
 #ifndef SIOCSHWTSTAMP
 #define SIOCSHWTSTAMP 0x89b0
 #endif
+
+#define NSEC_PER_SEC    1000000000L
+
+uint64_t (*rx_ts)(void);
+uint64_t (*tx_ts)(void);
+
+static uint64_t tx_start(void)
+{
+    struct timespec res;
+    clock_gettime(CLOCK_REALTIME, &res);
+    return res.tv_sec*NSEC_PER_SEC + res.tv_nsec;
+}
+
+static uint64_t rx_done(void)
+{
+    struct timespec res;
+    clock_gettime(CLOCK_REALTIME, &res);
+    return res.tv_sec*NSEC_PER_SEC + res.tv_nsec;
+}
+
+uint64_t rx_ts_wrap(void){
+    if (rx_ts == NULL) {
+        rx_ts = rx_done;
+    }
+    return rx_ts();
+}
+
+uint64_t tx_ts_wrap(void){
+    if (tx_ts == NULL) {
+        tx_ts = tx_start;
+    }
+    return tx_ts();
+}
 
 struct sockaddr getifaceaddr(char *interface)
 {
@@ -54,6 +88,9 @@ int enable_hwtstamp(int sock, char *interface, bool hw, bool rxonly)
     hwconfig.rx_filter = HWTSTAMP_FILTER_ALL;
 
     hwconfig_requested = hwconfig;
+
+    rx_ts = rx_done;
+    tx_ts = tx_start;
 
     int so_timestamping_flags = 0;
     if (hw)
@@ -106,3 +143,4 @@ int enable_hwtstamp(int sock, char *interface, bool hw, bool rxonly)
 #endif
     return 0;
 }
+

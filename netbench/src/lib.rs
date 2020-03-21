@@ -188,6 +188,10 @@ extern "C" {
     pub fn getifaceaddr(interface: *const libc::c_char) -> socket::sockaddr;
     /// Enable timestamping on the socket and for the given interface.
     fn enable_hwtstamp(sock: i32, interface: *const libc::c_char, hw: bool, rxonly: bool) -> i32;
+
+    /// Getting timestamps, requires function pointer to show in in Intel PT
+    pub fn rx_ts_wrap() -> u64;
+    pub fn tx_ts_wrap() -> u64;
 }
 
 unsafe fn enable_packet_timestamps(
@@ -350,15 +354,17 @@ pub fn now() -> u64 {
 /// Makes it easier to track when something is finished as it can still be confused
 /// when there are multile netbench::now() calls
 pub fn recv_done() -> u64 {
-    now()
+    unsafe{
+        rx_ts_wrap()
+    }
 }
 
 /// This one different on purpose! Otherwise it is optimized to the same symbol
 #[allow(unused_assignments)]
 pub fn send_done() -> u64 {
-    let mut tx_app = 1;
-    tx_app = now();
-    tx_app
+    unsafe{
+        tx_ts_wrap()
+    }
 }
 
 /// Makes a new CSV writer to log the results. We register an abort handler
